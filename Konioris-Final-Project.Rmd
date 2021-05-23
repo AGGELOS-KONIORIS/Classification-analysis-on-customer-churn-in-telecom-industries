@@ -1,0 +1,142 @@
+---
+title: "Final Project"
+author: "Angelos Konioris"
+date: "5/5/2021"
+output: html_document
+---
+
+### Data organizing
+
+```{r, include = TRUE, message = FALSE, warning = FALSE}
+cell2celltrain <- read.csv("C:/Users/aggel/Desktop/Processing big data/final project/cell2celltrain.csv", sep = ";", stringsAsFactors = TRUE)
+library(Hmisc)
+cell2celltrain$AgeHH1 <- with(cell2celltrain, impute(AgeHH1, mean))
+cell2celltrain$AgeHH2 <- with(cell2celltrain, impute(AgeHH2, "random"))
+cell2celltrain$MonthlyRevenue <- with(cell2celltrain, impute(MonthlyRevenue, mean))
+cell2celltrain$MonthlyMinutes <- with(cell2celltrain, impute(MonthlyMinutes, mean))
+cell2celltrain$TotalRecurringCharge <- with(cell2celltrain, impute(TotalRecurringCharge, mean))
+cell2celltrain$DirectorAssistedCalls <- with(cell2celltrain, impute(DirectorAssistedCalls, median))
+cell2celltrain$OverageMinutes <- with(cell2celltrain, impute(OverageMinutes, median))
+cell2celltrain$RoamingCalls <- with(cell2celltrain, impute(RoamingCalls, median))
+cell2celltrain$PercChangeMinutes <- with(cell2celltrain, impute(PercChangeMinutes, "random"))
+cell2celltrain$PercChangeRevenues <- with(cell2celltrain, impute(PercChangeRevenues, "random"))
+cell2celltrain$Handsets <- with(cell2celltrain, impute(Handsets, mean))
+cell2celltrain$HandsetModels <- with(cell2celltrain, impute(HandsetModels, mean))
+cell2celltrain$CurrentEquipmentDays <- with(cell2celltrain, impute(CurrentEquipmentDays, mean))
+cell2celltrain$ServiceArea <- NULL
+cell2celltrain$MaritalStatus <- NULL
+cell2celltrain$CustomerID <- NULL
+cell2celltrain$HandsetPrice <- NULL
+df <- cell2celltrain
+```
+
+### Spliting the dataset into train-test set
+
+```{r,include = TRUE}
+set.seed(1)
+train.x <- sample(1:nrow(df), nrow(df)/1.3)
+test.x <- -train.x
+train <- df[train.x, ]
+test <- df[test.x, ]
+```
+
+### Observing the p-values of the logistic regression
+
+```{r, include = TRUE}
+glm.fit <- glm(Churn ~ CurrentEquipmentDays + MonthsInService + UniqueSubs + HandsetRefurbished, data = train, family = binomial)
+summary(glm.fit)
+```
+
+### K-means neighbor
+
+```{r,include = TRUE, message = FALSE, warning = FALSE}
+library(class)
+train.k <- cbind(train$CurrentEquipmentDays, train$MonthsInService, train$UniqueSubs, train$HandsetRefurbished)
+test.k <- cbind(test$CurrentEquipmentDays, test$MonthsInService, test$UniqueSubs, test$HandsetRefurbished)
+train.target <- train$Churn
+```
+
+### Finding the minimum k-error
+
+```{r,include = TRUE, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(ggthemes)
+set.seed(1)
+knn.pred <- NULL
+knn.error <- NULL
+for (k in 1:150) {
+  knn.pred <- knn(train.k, test.k, train.target, k = k)
+  knn.error[k] <- mean(knn.pred != test$Churn)
+}
+k.values <- 1:150
+error.df <- data.frame(knn.error, k.values)
+ggplot(error.df, aes(k.values, knn.error)) +
+  geom_point(color = "darkblue") +
+  geom_point(aes(x = 104, y = 0.2870724), color = "red", size = 3) + 
+  annotate("text", label = "k = 104", x = 104, y = 0.293, size = 8, color = "red") +
+  geom_line(lty = "dashed", color = "red") +
+  labs(x = "k-values", y = "KNN test error rate", title = "KNN error plot") +
+  theme_economist_white()
+```
+
+### K-mean Neighbor for k = 104
+
+```{r,include = TRUE}
+set.seed(1)
+knn.pred <- knn(train.k, test.k, train.target, k = 104)
+table(knn.pred, test$Churn)
+```
+
+### Accuracy of the KNN model
+
+```{r, include = TRUE}
+mean(knn.pred == test$Churn)
+```
+
+### Random Forest 
+
+```{r, include = TRUE, message = FALSE, warning = FALSE}
+library(randomForest)
+set.seed(1)
+rf.df <-  randomForest(MonthlyRevenue ~ ., data = train, mtry = 18, ntree = 500, importance = TRUE)
+varImpPlot(rf.df, main = "Important features by Random Forest")
+```
+
+### MSE of the Random Forest approach
+
+```{r, include = TRUE}
+rf.pred <-  predict(rf.df, test)
+mean((rf.pred - test$MonthlyRevenue)^2)
+```
+
+### PCA
+
+```{r,include = TRUE}
+iso <- df
+iso <- iso[-c(1, 49, 45, 46, 31:42, 51:54)]
+pr.out <- prcomp(iso, scale = TRUE)
+pve <- 100*pr.out$sdev^2 / sum(pr.out$sdev^2)
+par(mfrow = c(1,2))
+plot(pve, type = "o", ylab = "PVE", xlab = "Principal Components", col = "darkblue")
+plot(cumsum(pve), type = "o", ylab = "Cumulative PVE", xlab = "Principal Components", col = "red")
+```
+
+### Hierarchical clustering on 9 first Principal Components
+
+```{r, include=TRUE}
+t.iso <- t(iso)
+pr.out <- prcomp(t.iso, scale = TRUE)
+hc <- hclust(dist(pr.out$x[ ,1:9]))
+plot(hc, labels = names(iso), main = "Hierarchical Clustering on Nine Principal Components", xlab = "", ylab = "", sub = "Complete linkage")
+abline(h = 650, col = "red")
+```
+
+### Hierarchical clustering using the whole dataset
+
+```{r, include = TRUE}
+sd.data <- scale(t.iso)
+data.dist <- dist(sd.data)
+hc.out <- hclust(data.dist)
+plot(hc.out, sub = "Complete linkage", xlab = "", ylab = "", main = "Hierarchical Clustering to the whole dataset")
+abline(h = 650, col = "red")
+```
