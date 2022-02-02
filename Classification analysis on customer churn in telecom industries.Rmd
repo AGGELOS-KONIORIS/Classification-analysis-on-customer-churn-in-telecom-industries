@@ -1,5 +1,5 @@
 ---
-title: "Final Project"
+title: "Classification analysis on customer churn in telecom industries "
 author: "Angelos Konioris"
 date: "5/5/2021"
 output: html_document
@@ -8,7 +8,7 @@ output: html_document
 ### Data organizing
 
 ```{r, include = TRUE, message = FALSE, warning = FALSE}
-cell2celltrain <- read.csv("C:/Users/aggel/Desktop/Processing big data/final project/cell2celltrain.csv", sep = ";", stringsAsFactors = TRUE)
+cell2celltrain <- read.csv("cell2celltrain.csv", sep = ";", stringsAsFactors = TRUE)
 library(Hmisc)
 cell2celltrain$AgeHH1 <- with(cell2celltrain, impute(AgeHH1, mean))
 cell2celltrain$AgeHH2 <- with(cell2celltrain, impute(AgeHH2, "random"))
